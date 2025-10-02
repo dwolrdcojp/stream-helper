@@ -1,0 +1,30 @@
+[Unit]
+Description=Twitch Stream Service
+After=network.target
+
+[Service]
+Type=simple
+User=%u
+WorkingDirectory=/path/to/stream
+ExecStart=/usr/bin/node /path/to/stream/dist/index.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/path/to/stream/logs/service.log
+StandardError=append:/path/to/stream/logs/service-error.log
+
+# Environment
+Environment=NODE_ENV=production
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/path/to/stream/logs /path/to/stream/overlays
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
