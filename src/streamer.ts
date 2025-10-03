@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
-import type { StreamConfig, FFmpegOptions } from './types.js';
+import type { StreamConfig } from './types.js';
 
 export class Streamer {
   private process: ChildProcess | null = null;
@@ -28,11 +28,61 @@ export class Streamer {
     this.currentVideoPath = videoPath;
     const args = this.buildFFmpegArgs(videoPath);
 
-    this.process = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    if (this.config.logLevel === 'debug') {
+      console.log('[Streamer] FFmpeg command:', 'ffmpeg', args.join(' '));
+    }
 
-    this.setupProcessHandlers();
+    return new Promise((resolve, reject) => {
+      this.process = spawn('ffmpeg', args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      const errorChunks: string[] = [];
+
+      this.process.stderr?.on('data', (data) => {
+        const output = data.toString();
+        errorChunks.push(output);
+        if (this.config.logLevel === 'debug') {
+          console.log('[FFmpeg]', output);
+        }
+      });
+
+      this.process.stdout?.on('data', (data) => {
+        const output = data.toString();
+        if (this.config.logLevel === 'debug') {
+          console.log('[FFmpeg stdout]', output);
+        }
+      });
+
+      this.process.on('error', (error) => {
+        console.error('[Streamer] Process error:', error);
+        this.process = null;
+        this.currentVideoPath = null;
+        reject(error);
+      });
+
+      this.process.on('exit', (code, signal) => {
+        const fullError = errorChunks.join('');
+        this.process = null;
+        this.currentVideoPath = null;
+
+        if (signal) {
+          console.log(`[Streamer] FFmpeg killed with signal ${signal}`);
+          reject(new Error(`FFmpeg killed with signal ${signal}`));
+        } else if (code !== 0 && code !== null) {
+          console.error(`[Streamer] FFmpeg exited with code ${code}`);
+          const errorLines = fullError.split('\n').filter(line => 
+            line.toLowerCase().includes('error') || 
+            line.toLowerCase().includes('failed') ||
+            line.toLowerCase().includes('invalid')
+          ).slice(-5);
+          const errorSummary = errorLines.length > 0 ? '\n' + errorLines.join('\n') : '';
+          reject(new Error(`FFmpeg exited with code ${code}${errorSummary}`));
+        } else {
+          resolve();
+        }
+      });
+    });
   }
 
   /**
@@ -98,8 +148,9 @@ export class Streamer {
     // Input options
     args.push('-re'); // Read input at native frame rate
 
-    // Hardware acceleration (if enabled)
-    if (this.config.hwAccel && this.config.hwAccel !== 'none') {
+    // Hardware acceleration for decoding (if enabled)
+    // Note: For NVENC, we only use it for encoding, not decoding, to keep filter chain simple
+    if (this.config.hwAccel && this.config.hwAccel !== 'none' && this.config.hwAccel !== 'nvenc') {
       if (this.config.hwAccel === 'videotoolbox') {
         args.push('-hwaccel', 'videotoolbox');
       } else if (this.config.hwAccel === 'vaapi') {
@@ -111,7 +162,8 @@ export class Streamer {
     args.push('-i', videoPath);
 
     // Video codec settings
-    args.push('-c:v', 'libx264');
+    const videoCodec = this.config.hwAccel === 'nvenc' ? 'h264_nvenc' : 'libx264';
+    args.push('-c:v', videoCodec);
     args.push('-preset', this.config.preset);
     args.push('-b:v', this.config.videoBitrate);
     args.push('-maxrate', this.config.videoBitrate);
@@ -120,15 +172,14 @@ export class Streamer {
     args.push('-g', (this.config.fps * 2).toString()); // Keyframe interval
     args.push('-pix_fmt', 'yuv420p');
 
-    // Resolution scaling
+    // Resolution scaling and filters (always use CPU filters for simplicity)
     let videoFilter = `scale=${this.config.resolution}`;
-
+    
     // Add overlay filter if enabled
     if (this.config.overlayEnabled && existsSync(this.overlayTextFile)) {
       const fontFile = this.config.overlayFont
         ? `:fontfile=${this.config.overlayFont}`
-        : '';
-
+          : '';
       videoFilter += `,drawtext=textfile=${this.overlayTextFile}:reload=1:${this.config.overlayPosition}:fontsize=${this.config.overlayFontSize}:fontcolor=${this.config.overlayColor}${fontFile}:box=1:boxcolor=black@0.5:boxborderw=5`;
     }
 
@@ -160,8 +211,9 @@ export class Streamer {
     // Input options
     args.push('-re'); // Read input at native frame rate
 
-    // Hardware acceleration (if enabled)
-    if (this.config.hwAccel && this.config.hwAccel !== 'none') {
+    // Hardware acceleration for decoding (if enabled)
+    // Note: For NVENC, we only use it for encoding, not decoding, to keep filter chain simple
+    if (this.config.hwAccel && this.config.hwAccel !== 'none' && this.config.hwAccel !== 'nvenc') {
       if (this.config.hwAccel === 'videotoolbox') {
         args.push('-hwaccel', 'videotoolbox');
       } else if (this.config.hwAccel === 'vaapi') {
@@ -173,7 +225,8 @@ export class Streamer {
     args.push('-i', videoPath);
 
     // Video codec settings
-    args.push('-c:v', 'libx264');
+    const videoCodec = this.config.hwAccel === 'nvenc' ? 'h264_nvenc' : 'libx264';
+    args.push('-c:v', videoCodec);
     args.push('-preset', this.config.preset);
     args.push('-b:v', this.config.videoBitrate);
     args.push('-maxrate', this.config.videoBitrate);
@@ -182,15 +235,14 @@ export class Streamer {
     args.push('-g', (this.config.fps * 2).toString()); // Keyframe interval
     args.push('-pix_fmt', 'yuv420p');
 
-    // Resolution scaling
+    // Resolution scaling and filters (always use CPU filters for simplicity)
     let videoFilter = `scale=${this.config.resolution}`;
-
+    
     // Add overlay filter if enabled
     if (this.config.overlayEnabled && existsSync(this.overlayTextFile)) {
       const fontFile = this.config.overlayFont
         ? `:fontfile=${this.config.overlayFont}`
         : '';
-
       videoFilter += `,drawtext=textfile=${this.overlayTextFile}:reload=1:${this.config.overlayPosition}:fontsize=${this.config.overlayFontSize}:fontcolor=${this.config.overlayColor}${fontFile}:box=1:boxcolor=black@0.5:boxborderw=5`;
     }
 
@@ -227,37 +279,5 @@ export class Streamer {
   /**
    * Setup process event handlers
    */
-  private setupProcessHandlers(): void {
-    if (!this.process) return;
 
-    this.process.stdout?.on('data', (data) => {
-      const output = data.toString();
-      if (this.config.logLevel === 'debug') {
-        console.log('[FFmpeg stdout]', output);
-      }
-    });
-
-    this.process.stderr?.on('data', (data) => {
-      const output = data.toString();
-      // FFmpeg outputs progress to stderr
-      if (this.config.logLevel === 'debug') {
-        console.log('[FFmpeg]', output);
-      }
-    });
-
-    this.process.on('error', (error) => {
-      console.error('[Streamer] Process error:', error);
-    });
-
-    this.process.on('exit', (code, signal) => {
-      if (code !== 0 && code !== null) {
-        console.error(`[Streamer] FFmpeg exited with code ${code}`);
-      }
-      if (signal) {
-        console.log(`[Streamer] FFmpeg killed with signal ${signal}`);
-      }
-      this.process = null;
-      this.currentVideoPath = null;
-    });
-  }
 }

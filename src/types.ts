@@ -16,7 +16,7 @@ export interface StreamConfig {
   preset: string;
 
   // Hardware acceleration (optional)
-  hwAccel?: 'videotoolbox' | 'vaapi' | 'none';
+  hwAccel?: 'videotoolbox' | 'vaapi' | 'nvenc' | 'none';
 
   // Overlay settings
   overlayEnabled: boolean;

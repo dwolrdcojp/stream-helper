@@ -49,9 +49,22 @@ sudo apt update
 sudo apt install ffmpeg
 ```
 
+**Linux (Arch):**
+```bash
+sudo pacman -S ffmpeg
+```
+
 **Linux (CentOS/RHEL):**
 ```bash
 sudo yum install ffmpeg
+```
+
+**Linux (Arch) - With NVIDIA GPU Support:**
+```bash
+# For NVIDIA hardware acceleration (RTX 30/40 series, etc.)
+sudo pacman -S ffmpeg nvidia-utils cuda
+# Verify NVENC support
+ffmpeg -encoders | grep nvenc
 ```
 
 **Verify installation:**
@@ -295,11 +308,14 @@ TWITCH_SERVER=rtmp://live.twitch.tv/app
 Dramatically reduces CPU usage:
 
 ```bash
-# macOS (recommended for Mac users)
+# macOS (Apple Silicon/Intel with T2)
 HW_ACCEL=videotoolbox
 
 # Linux with Intel/AMD GPU
 HW_ACCEL=vaapi
+
+# Linux/Windows with NVIDIA GPU (requires CUDA-enabled FFmpeg)
+HW_ACCEL=nvenc
 
 # No hardware acceleration (works everywhere)
 HW_ACCEL=none
@@ -307,7 +323,38 @@ HW_ACCEL=none
 
 **CPU Usage Comparison:**
 - Software (`none`): 40-80% CPU
-- Hardware (`videotoolbox`/`vaapi`): 5-15% CPU
+- Hardware (`videotoolbox`/`vaapi`/`nvenc`): 5-15% CPU
+
+**NVIDIA GPU Requirements (Arch Linux):**
+```bash
+# Install NVIDIA drivers and CUDA
+sudo pacman -S nvidia nvidia-utils cuda
+
+# Install FFmpeg with CUDA support
+sudo pacman -S ffmpeg
+
+# Verify NVENC is available
+ffmpeg -encoders | grep nvenc
+# Should show: h264_nvenc, hevc_nvenc
+
+# Configure hardware acceleration
+HW_ACCEL=nvenc
+PRESET=p4  # NVENC presets: p1-p7 (p1=fastest, p7=best quality)
+```
+
+**Supported NVIDIA GPUs:**
+- RTX 40 series (4090, 4080, 4070, etc.)
+- RTX 30 series (3090, 3080, 3070, 3060, etc.)
+- RTX 20 series (2080 Ti, 2080, 2070, etc.)
+- GTX 16 series (1660 Ti, 1660, 1650)
+- GTX 10 series (1080 Ti, 1080, 1070, 1060, etc.)
+- Most Quadro and Tesla cards
+
+**NVENC Benefits:**
+- Minimal CPU usage (5-10%)
+- Hardware-accelerated scaling and encoding
+- Multiple simultaneous streams possible
+- Lower power consumption vs software encoding
 
 ### Overlay Customization
 
@@ -492,10 +539,13 @@ FPS=30
    # macOS
    HW_ACCEL=videotoolbox
 
-   # Linux
+   # Linux with Intel/AMD GPU
    HW_ACCEL=vaapi
+
+   # Linux/Windows with NVIDIA GPU
+   HW_ACCEL=nvenc
    ```
-2. Use faster preset: `PRESET=ultrafast`
+2. Use faster preset: `PRESET=ultrafast` (or `PRESET=p1` for NVENC)
 3. Lower bitrate: `VIDEO_BITRATE=2500k`
 4. Reduce resolution: `RESOLUTION=1280x720`
 5. Lower FPS: `FPS=30`
@@ -557,6 +607,46 @@ FPS=30
 2. Verify file formats are supported (MP4, MKV, AVI, MOV, FLV, WebM, M4V)
 3. Check permissions: `chmod 644 videos/*.mp4`
 4. Use absolute path: `VIDEO_DIR=/full/path/to/videos`
+
+### NVIDIA Hardware Acceleration Not Working
+
+**Problem:** NVENC fails or falls back to software encoding
+
+**Solutions:**
+1. Verify NVIDIA drivers are installed:
+   ```bash
+   nvidia-smi
+   # Should show your GPU (e.g., RTX 3090)
+   ```
+
+2. Check NVENC support in FFmpeg:
+   ```bash
+   ffmpeg -encoders | grep nvenc
+   # Should show: h264_nvenc, hevc_nvenc
+   ```
+
+3. Test NVENC encoding:
+   ```bash
+   ffmpeg -hwaccel cuda -i test.mp4 -c:v h264_nvenc -f null -
+   # Should encode without errors
+   ```
+
+4. Common issues:
+   - **FFmpeg not compiled with NVENC:** Reinstall FFmpeg with CUDA support
+   - **Old NVIDIA drivers:** Update to latest drivers (`sudo pacman -S nvidia`)
+   - **CUDA not installed:** Install CUDA toolkit (`sudo pacman -S cuda`)
+   - **Multiple GPUs:** Specify GPU: `CUDA_VISIBLE_DEVICES=0`
+
+5. Enable debug logging to see FFmpeg errors:
+   ```bash
+   LOG_LEVEL=debug npm run dev
+   # Check logs for "nvenc" related errors
+   ```
+
+6. Fallback to software encoding if needed:
+   ```bash
+   HW_ACCEL=none
+   ```
 
 ## FAQ
 
@@ -696,15 +786,15 @@ npm run dev
 For the lowest CPU and memory usage:
 
 ```bash
-HW_ACCEL=videotoolbox       # or vaapi on Linux
-PRESET=ultrafast
+HW_ACCEL=nvenc              # or videotoolbox on macOS, vaapi on Intel/AMD
+PRESET=p1                   # p1 for NVENC, ultrafast for software
 VIDEO_BITRATE=2500k
 RESOLUTION=1280x720
 FPS=30
 OVERLAY_ENABLED=false       # Overlays add ~5% CPU
 ```
 
-**Expected usage:** ~25-35MB RAM, ~5-10% CPU
+**Expected usage:** ~25-35MB RAM, ~5-10% CPU (with hardware acceleration)
 
 ### Maximum Quality Configuration
 

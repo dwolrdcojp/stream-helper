@@ -124,7 +124,11 @@ Set `LOG_LEVEL=debug` in `.env` to see FFmpeg output and detailed health checks.
 - The service requires FFmpeg to be installed and available in PATH
 - Twitch stream key must never be committed to git (use .env, which is gitignored)
 - Twitch stream key is only required when `PREVIEW_MODE=false` (validation skipped in preview mode)
-- Hardware acceleration (VideoToolbox on macOS, VAAPI on Linux) significantly reduces CPU usage but may not work on all systems
+- Hardware acceleration options:
+  - VideoToolbox (macOS): Apple Silicon and Intel Macs with T2 chip
+  - VAAPI (Linux): Intel and AMD GPUs
+  - NVENC (Linux/Windows): NVIDIA GPUs (requires CUDA-enabled FFmpeg)
+  - Significantly reduces CPU usage but requires compatible hardware
 - The playlist manager uses synchronous fs operations on startup but async watching during runtime
 - FFmpeg stderr is used for progress output (not errors), so don't treat all stderr as errors
 - Preview mode uses HLS with auto-deleting segments to minimize disk usage

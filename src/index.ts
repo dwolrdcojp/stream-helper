@@ -104,11 +104,8 @@ class StreamService {
         // Update monitor
         this.monitor.updateCurrentVideo(video.filename);
 
-        // Start streaming
+        // Start streaming (waits for completion)
         await this.streamer.start(video.path);
-
-        // Wait for stream to complete
-        await this.waitForStreamEnd();
 
         // Reset retry count on successful stream
         this.monitor.resetRetry();
@@ -136,25 +133,7 @@ class StreamService {
     await this.shutdown();
   }
 
-  /**
-   * Wait for current stream to end
-   */
-  private async waitForStreamEnd(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const checkInterval = setInterval(() => {
-        if (!this.streamer.isStreaming()) {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 1000);
 
-      // If shutdown is triggered, stop waiting
-      if (this.isShuttingDown) {
-        clearInterval(checkInterval);
-        reject(new Error('Shutdown triggered'));
-      }
-    });
-  }
 
   /**
    * Graceful shutdown
