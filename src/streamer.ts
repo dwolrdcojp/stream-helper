@@ -173,9 +173,8 @@ export class Streamer {
 
     args.push('-i', videoPath);
 
-    args.push('-vsync', 'cfr');
+    args.push('-fps_mode', 'cfr');
 
-    // Video codec settings
     const videoCodec = this.config.hwAccel === 'nvenc' ? 'h264_nvenc' : 'libx264';
     args.push('-c:v', videoCodec);
     args.push('-preset', this.config.preset);
@@ -186,7 +185,8 @@ export class Streamer {
     args.push('-g', (this.config.fps * 2).toString());
     args.push('-pix_fmt', 'yuv420p');
 
-    let videoFilter = `scale=${this.config.resolution}:force_original_aspect_ratio=decrease,pad=${this.config.resolution}:(ow-iw)/2:(oh-ih)/2:black`;
+    const [width, height] = this.config.resolution.split('x');
+    let videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`;
     
     if (this.config.overlayEnabled && existsSync(this.overlayTextFile)) {
       const fontFile = this.config.overlayFont
@@ -236,7 +236,7 @@ export class Streamer {
 
     args.push('-i', videoPath);
 
-    args.push('-vsync', 'cfr');
+    args.push('-fps_mode', 'cfr');
 
     const videoCodec = this.config.hwAccel === 'nvenc' ? 'h264_nvenc' : 'libx264';
     args.push('-c:v', videoCodec);
@@ -248,7 +248,8 @@ export class Streamer {
     args.push('-g', (this.config.fps * 2).toString());
     args.push('-pix_fmt', 'yuv420p');
 
-    let videoFilter = `scale=${this.config.resolution}:force_original_aspect_ratio=decrease,pad=${this.config.resolution}:(ow-iw)/2:(oh-ih)/2:black`;
+    const [width, height] = this.config.resolution.split('x');
+    let videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`;
     
     if (this.config.overlayEnabled && existsSync(this.overlayTextFile)) {
       const fontFile = this.config.overlayFont
