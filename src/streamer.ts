@@ -161,6 +161,8 @@ export class Streamer {
 
     args.push('-i', videoPath);
 
+    args.push('-vsync', 'cfr');
+
     // Video codec settings
     const videoCodec = this.config.hwAccel === 'nvenc' ? 'h264_nvenc' : 'libx264';
     args.push('-c:v', videoCodec);
@@ -169,13 +171,11 @@ export class Streamer {
     args.push('-maxrate', this.config.videoBitrate);
     args.push('-bufsize', this.calculateBufferSize(this.config.videoBitrate));
     args.push('-r', this.config.fps.toString());
-    args.push('-g', (this.config.fps * 2).toString()); // Keyframe interval
+    args.push('-g', (this.config.fps * 2).toString());
     args.push('-pix_fmt', 'yuv420p');
 
-    // Resolution scaling and filters (always use CPU filters for simplicity)
-    let videoFilter = `scale=${this.config.resolution}`;
+    let videoFilter = `scale=${this.config.resolution}:force_original_aspect_ratio=decrease,pad=${this.config.resolution}:(ow-iw)/2:(oh-ih)/2:black`;
     
-    // Add overlay filter if enabled
     if (this.config.overlayEnabled && existsSync(this.overlayTextFile)) {
       const fontFile = this.config.overlayFont
         ? `:fontfile=${this.config.overlayFont}`
@@ -185,11 +185,11 @@ export class Streamer {
 
     args.push('-vf', videoFilter);
 
-    // Audio codec settings
     args.push('-c:a', 'aac');
     args.push('-b:a', this.config.audioBitrate);
-    args.push('-ar', '44100');
+    args.push('-ar', '48000');
     args.push('-ac', '2');
+    args.push('-af', 'aresample=async=1');
 
     // Output format settings
     args.push('-f', 'flv');
@@ -224,7 +224,8 @@ export class Streamer {
 
     args.push('-i', videoPath);
 
-    // Video codec settings
+    args.push('-vsync', 'cfr');
+
     const videoCodec = this.config.hwAccel === 'nvenc' ? 'h264_nvenc' : 'libx264';
     args.push('-c:v', videoCodec);
     args.push('-preset', this.config.preset);
@@ -232,27 +233,25 @@ export class Streamer {
     args.push('-maxrate', this.config.videoBitrate);
     args.push('-bufsize', this.calculateBufferSize(this.config.videoBitrate));
     args.push('-r', this.config.fps.toString());
-    args.push('-g', (this.config.fps * 2).toString()); // Keyframe interval
+    args.push('-g', (this.config.fps * 2).toString());
     args.push('-pix_fmt', 'yuv420p');
 
-    // Resolution scaling and filters (always use CPU filters for simplicity)
-    let videoFilter = `scale=${this.config.resolution}`;
+    let videoFilter = `scale=${this.config.resolution}:force_original_aspect_ratio=decrease,pad=${this.config.resolution}:(ow-iw)/2:(oh-ih)/2:black`;
     
-    // Add overlay filter if enabled
     if (this.config.overlayEnabled && existsSync(this.overlayTextFile)) {
       const fontFile = this.config.overlayFont
         ? `:fontfile=${this.config.overlayFont}`
-        : '';
+          : '';
       videoFilter += `,drawtext=textfile=${this.overlayTextFile}:reload=1:${this.config.overlayPosition}:fontsize=${this.config.overlayFontSize}:fontcolor=${this.config.overlayColor}${fontFile}:box=1:boxcolor=black@0.5:boxborderw=5`;
     }
 
     args.push('-vf', videoFilter);
 
-    // Audio codec settings
     args.push('-c:a', 'aac');
     args.push('-b:a', this.config.audioBitrate);
-    args.push('-ar', '44100');
+    args.push('-ar', '48000');
     args.push('-ac', '2');
+    args.push('-af', 'aresample=async=1');
 
     // HLS output settings
     args.push('-f', 'hls');
