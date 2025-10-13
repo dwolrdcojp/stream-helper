@@ -92,39 +92,56 @@ class StreamService {
         continue;
       }
 
+      const videoStartTime = new Date();
+      
       try {
-        console.log(`[Service] Starting: ${video.filename}`);
+        console.log(`\n${'='.repeat(70)}`);
+        console.log(`▶️  Starting: ${video.filename}`);
+        console.log(`   Path: ${video.path}`);
+        console.log(`   Start Time: ${videoStartTime.toISOString()}`);
+        console.log(`${'='.repeat(70)}\n`);
 
-        // Update overlay
         this.overlay.update({
           videoName: video.filename,
           timestamp: new Date().toISOString(),
         });
 
-        // Update monitor
         this.monitor.updateCurrentVideo(video.filename);
 
-        // Start streaming (waits for completion)
         await this.streamer.start(video.path);
 
-        // Reset retry count on successful stream
         this.monitor.resetRetry();
 
-        console.log(`[Service] Completed: ${video.filename}\n`);
+        const videoEndTime = new Date();
+        const streamingDuration = (videoEndTime.getTime() - videoStartTime.getTime()) / 1000;
+        
+        console.log(`\n${'='.repeat(70)}`);
+        console.log(`✅ Completed: ${video.filename}`);
+        console.log(`   Duration: ${this.formatDuration(streamingDuration)}`);
+        console.log(`   End Time: ${videoEndTime.toISOString()}`);
+        console.log(`${'='.repeat(70)}\n`);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(`[Service] Stream error: ${errorMsg}`);
+        const videoEndTime = new Date();
+        const streamingDuration = (videoEndTime.getTime() - videoStartTime.getTime()) / 1000;
+        
+        console.error(`\n${'='.repeat(70)}`);
+        console.error(`❌ Stream Failed: ${video.filename}`);
+        console.error(`   Duration Before Failure: ${this.formatDuration(streamingDuration)}`);
+        console.error(`   Failure Time: ${videoEndTime.toISOString()}`);
+        console.error(`${'='.repeat(70)}`);
 
         this.monitor.recordError(errorMsg);
         this.monitor.incrementRetry();
 
         if (!this.monitor.shouldRetry()) {
-          console.error('[Service] Max retries exceeded, stopping service');
+          console.error('\n[Service] ⛔ Max retries exceeded, stopping service');
           break;
         }
 
         const delay = this.monitor.getBackoffDelay();
-        console.log(`[Service] Retrying in ${delay}ms... (attempt ${this.monitor.getStatus().retryCount}/${this.config.maxRetries})\n`);
+        console.log(`\n[Service] 🔄 Moving to next video (retry ${this.monitor.getStatus().retryCount}/${this.config.maxRetries})`);
+        console.log(`[Service] ⏳ Backoff delay: ${this.formatDuration(delay / 1000)}\n`);
 
         await this.sleep(delay);
       }
@@ -233,9 +250,6 @@ class StreamService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /**
-   * Format uptime for display
-   */
   private formatUptime(ms: number): string {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -251,6 +265,14 @@ class StreamService {
     } else {
       return `${seconds}s`;
     }
+  }
+
+  private formatDuration(seconds: number): string {
+    if (seconds === 0) return '00:00:00';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
 }
 
